@@ -17,6 +17,12 @@ class Post {
         return rows;
     }
 
+    async findUserPosts(userId) {
+        const query = `select * from posts where id in (select post_id from user_post where user_id = ${userId});`;
+        const [rows] = await pool.query(query);
+        return rows;
+    }
+
     async count() {
         const [rows] = await pool.query("select count(*) as count from posts;");
         return rows[0].count;

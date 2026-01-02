@@ -15,9 +15,22 @@ class User {
 
     async findOne(id) {
         const [rows] = await pool.query(
-            `select * from users where id = ${id};`
+            `select id, email, first_name, last_name, created_at from users where id = ${id};`
         );
         return rows[0];
+    }
+
+    async findByEmailAndPassword(email, password) {
+        const query = `select id, email, first_name, last_name from users where email = ? and password = ?;`;
+        const [rows] = await pool.query(query, [email, password]);
+        return rows[0];
+    }
+
+    async create(email, password) {
+        const [{ insertId }] = await pool.query(
+            `insert into users (email, password) values ("${email}", "${password}")`
+        );
+        return insertId;
     }
 }
 
