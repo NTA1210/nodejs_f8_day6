@@ -13,6 +13,7 @@ const userModel = require("../models/user.model");
 const jwtUtils = require("../utils/jwt");
 const strings = require("../utils/strings");
 const emailService = require("../services/email.service");
+const queueService = require("../services/queue.service");
 
 const register = async (req, res) => {
     const { email, password } = req.body;
@@ -25,8 +26,10 @@ const register = async (req, res) => {
             email,
         };
 
-        // Send verify email
-        await emailService.sendVerifyEmail(newUser);
+        queueService.push({
+            type: "sendVerifyEmail",
+            payload: newUser,
+        });
 
         res.success(newUser, HTTP_STATUS.CREATED);
     } catch (error) {
@@ -124,7 +127,14 @@ const resendVerifyEmail = async (req, res) => {
         return;
     }
 
-    await emailService.sendVerifyEmail(req.user);
+    queueService.push({
+        type: "sendVerifyEmail",
+        payload: {
+            id: req.user.id,
+            email: req.user.email,
+        },
+    });
+
     res.success("Resend verify email thanh cong");
 };
 
