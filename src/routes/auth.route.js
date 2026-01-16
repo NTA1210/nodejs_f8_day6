@@ -9,9 +9,11 @@ router.post("/refresh-token", authController.refreshToken);
 router.get("/me", authRequired, authController.getCurrentUser);
 router.post("/verify-email", authController.verifyEmail);
 router.post(
-    "/resend-verify-email",
-    authRequired,
-    authController.resendVerifyEmail
+  "/resend-verify-email",
+  authRequired,
+  authController.resendVerifyEmail
 );
+
+router.post("/logout", authRequired, authController.logout);
 
 module.exports = router;

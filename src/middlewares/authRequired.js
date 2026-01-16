@@ -1,55 +1,36 @@
-const crypto = require("crypto");
 const { authSecret } = require("../config/jwt");
 const { ERROR_MESSAGES, HTTP_STATUS } = require("../config/constants");
 const userModel = require("../models/user.model");
+const revoke_tokenModel = require("../models/revoke_token.model");
+const jwt = require("jsonwebtoken");
 
 const authRequired = async (req, res, next) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-        return res.error(ERROR_MESSAGES.UNAUTHORIZED, HTTP_STATUS.UNAUTHORIZED);
-    }
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.error(ERROR_MESSAGES.UNAUTHORIZED, HTTP_STATUS.UNAUTHORIZED);
+  }
 
-    const accessToken = authHeader.replace("Bearer ", "").trim();
-    if (!accessToken) {
-        return res.error(ERROR_MESSAGES.UNAUTHORIZED, HTTP_STATUS.UNAUTHORIZED);
-    }
+  const accessToken = authHeader.replace("Bearer ", "").trim();
+  if (!accessToken) {
+    return res.error(ERROR_MESSAGES.UNAUTHORIZED, HTTP_STATUS.UNAUTHORIZED);
+  }
 
-    const tokenParts = accessToken.split(".");
-    if (tokenParts.length !== 3) {
-        return res.error(ERROR_MESSAGES.UNAUTHORIZED, HTTP_STATUS.UNAUTHORIZED);
-    }
+  const payload = jwt.verify(accessToken, authSecret);
 
-    const [encodedHeader, encodedPayload, clientSignature] = tokenParts;
+  const revokedToken = await revoke_tokenModel.findOne(accessToken);
+  if (revokedToken) {
+    return res.error(ERROR_MESSAGES.UNAUTHORIZED, HTTP_STATUS.UNAUTHORIZED);
+  }
+  const currentUser = await userModel.findOne(payload.sub);
 
-    const hmac = crypto.createHmac("sha256", authSecret);
-    hmac.update(`${encodedHeader}.${encodedPayload}`);
+  if (!currentUser) {
+    return res.error(ERROR_MESSAGES.UNAUTHORIZED, HTTP_STATUS.UNAUTHORIZED);
+  }
 
-    const signature = hmac.digest("base64url");
+  req.user = currentUser;
+  req.token = accessToken;
 
-    if (signature !== clientSignature) {
-        return res.error(ERROR_MESSAGES.UNAUTHORIZED, HTTP_STATUS.UNAUTHORIZED);
-    }
-
-    let payload;
-    try {
-        payload = JSON.parse(atob(encodedPayload));
-    } catch (error) {
-        return res.error(ERROR_MESSAGES.UNAUTHORIZED, HTTP_STATUS.UNAUTHORIZED);
-    }
-
-    if (!payload.exp || payload.exp < Date.now()) {
-        return res.error(ERROR_MESSAGES.UNAUTHORIZED, HTTP_STATUS.UNAUTHORIZED);
-    }
-
-    const currentUser = await userModel.findOne(payload.sub);
-
-    if (!currentUser) {
-        return res.error(ERROR_MESSAGES.UNAUTHORIZED, HTTP_STATUS.UNAUTHORIZED);
-    }
-
-    req.user = currentUser;
-
-    next();
+  next();
 };
 
 module.exports = authRequired;

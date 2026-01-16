@@ -1,40 +1,49 @@
-const { readDB, writeDB } = require("../utils/jsonDB");
-
-let taskId = 1;
-let db = {};
-
-readDB().then((result) => {
-    db = result;
-});
+const pool = require("../config/database");
 
 const taskModel = {
-    findAll() {
-        return db.tasks || [];
-    },
-    findOne(id) {
-        return db.tasks?.find((task) => task.id === id);
-    },
-    async create(task) {
-        if (!db.tasks) {
-            db.tasks = [];
-        }
-        
-        const newTask = {
-            id: taskId++,
-            ...task,
-            isCompleted: false,
-        };
-        db.tasks.push(newTask);
+  async findAll() {
+    const [data] = await pool.query(
+      "SELECT * FROM tasks ORDER BY created_at DESC"
+    );
 
-        try {
-            await writeDB(db);
-        } catch (error) {
-            console.error("Failed to save task to database:", error);
-            throw new Error("Failed to create task");
-        }
+    return data;
+  },
+  async findOne(id) {
+    const [data] = await pool.query(`SELECT * FROM tasks WHERE id = ${id}`);
 
-        return newTask;
-    },
+    return data[0] || null;
+  },
+  async create({ title, user_id }) {
+    const [data] = await pool.query(
+      `INSERT INTO tasks (title,user_id) VALUES ('${title}', ${user_id})`
+    );
+
+    const result = await this.findOne(data.insertId);
+
+    return result;
+  },
+
+  async update(id, { title, completed = false }, user_id) {
+    const [data] = await pool.query(
+      `UPDATE tasks SET title = '${title}', completed = ${
+        completed ? 1 : 0
+      } WHERE id = ${id} AND user_id = ${user_id}`
+    );
+    console.log(data);
+
+    return {
+      affectedRows: data.affectedRows,
+    };
+  },
+
+  async destroy(id, user_id) {
+    const [data] = await pool.query(
+      `DELETE FROM tasks WHERE id = ${id} AND user_id = ${user_id}`
+    );
+    return {
+      affectedRows: data.affectedRows,
+    };
+  },
 };
 
 module.exports = taskModel;

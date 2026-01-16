@@ -1,29 +1,39 @@
 const taskModel = require("../models/task.model");
-const { HTTP_STATUS } = require("../config/constants");
 
-const getAll = (req, res) => {
-    const tasks = taskModel.findAll();
-    res.success(tasks);
+const getAll = async (req, res) => {
+  const tasks = await taskModel.findAll();
+  res.success(tasks);
 };
 
-const getOne = (req, res) => {
-    const task = taskModel.findOne(+req.params.id);
-    res.success(task);
+const getOne = async (req, res) => {
+  const task = await taskModel.findOne(+req.params.id);
+  res.success(task);
 };
 
-const create = async (req, res, next) => {
-    try {
-        const newTask = await taskModel.create({
-            title: req.body.title,
-        });
-        res.success(newTask, HTTP_STATUS.CREATED);
-    } catch (error) {
-        next(error);
-    }
+const create = async (req, res) => {
+  const user = req.user;
+  const newTask = await taskModel.create({
+    title: req.body.title.trim(),
+    user_id: user.id,
+  });
+  res.success(newTask, 201);
 };
 
-const toggle = (req, res) => {
-    res.send("Toggle task isCompleted");
+const update = async (req, res) => {
+  const { title, completed } = req.body;
+  const user = req.user;
+  const task = await taskModel.update(
+    +req.params.id,
+    { title, completed },
+    user.id
+  );
+  res.success(task);
 };
 
-module.exports = { getAll, getOne, create, toggle };
+const destroy = async (req, res) => {
+  const user = req.user;
+  const task = await taskModel.destroy(+req.params.id, user.id);
+  res.success(task);
+};
+
+module.exports = { getAll, getOne, create, update, destroy };
