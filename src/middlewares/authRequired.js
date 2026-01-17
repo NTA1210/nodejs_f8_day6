@@ -1,8 +1,8 @@
 const { authSecret } = require("../config/jwt");
 const { ERROR_MESSAGES, HTTP_STATUS } = require("../config/constants");
 const userModel = require("../models/user.model");
-const revoke_tokenModel = require("../models/revoke_token.model");
 const jwt = require("jsonwebtoken");
+const revokedTokenModel = require("../models/revokedToken.model");
 
 const authRequired = async (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -17,7 +17,7 @@ const authRequired = async (req, res, next) => {
 
   const payload = jwt.verify(accessToken, authSecret);
 
-  const revokedToken = await revoke_tokenModel.findOne(accessToken);
+  const revokedToken = await revokedTokenModel.findOne(accessToken);
   if (revokedToken) {
     return res.error(ERROR_MESSAGES.UNAUTHORIZED, HTTP_STATUS.UNAUTHORIZED);
   }

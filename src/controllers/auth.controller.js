@@ -1,71 +1,16 @@
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 
-const { authSecret, verifyEmailSecret } = require("../config/jwt");
-const {
-  BCRYPT_SALT_ROUNDS,
-  ACCESS_TOKEN_TTL_SECONDS,
-  REFRESH_TOKEN_TTL_DAYS,
-  ERROR_MESSAGES,
-  HTTP_STATUS,
-} = require("../config/constants");
+const { verifyEmailSecret } = require("../config/jwt");
+const { ERROR_MESSAGES, HTTP_STATUS } = require("../config/constants");
 const userModel = require("../models/user.model");
-const jwtUtils = require("../utils/jwt");
-const strings = require("../utils/strings");
-const emailService = require("../services/email.service");
 const queueService = require("../services/queue.service");
-const revoke_tokenModel = require("../models/revoke_token.model");
-
-const responseWithTokens = async (user) => {
-  const accessTokenTtlMs = ACCESS_TOKEN_TTL_SECONDS;
-  const refreshTokenTtlMs = REFRESH_TOKEN_TTL_DAYS;
-
-  const payload = {
-    sub: user.id,
-    exp: Date.now() + accessTokenTtlMs,
-  };
-  const accessToken = jwtUtils.sign(payload, authSecret);
-  const refreshToken = strings.createRandomString(32);
-  const refreshTtl = new Date(Date.now() + refreshTokenTtlMs);
-
-  await userModel.updateRefreshToken(user.id, refreshToken, refreshTtl);
-
-  const response = {
-    access_token: accessToken,
-    access_token_ttl: ACCESS_TOKEN_TTL_SECONDS,
-    refresh_token: refreshToken,
-    refresh_token_ttl: REFRESH_TOKEN_TTL_DAYS,
-  };
-
-  return response;
-};
+const authService = require("../services/auth.service");
 
 const register = async (req, res) => {
   const { email, password } = req.body;
-  const hash = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
-
-  try {
-    const insertId = await userModel.create(email, hash);
-    const newUser = {
-      id: insertId,
-      email,
-    };
-
-    queueService.push({
-      type: "sendVerifyEmail",
-      payload: newUser,
-    });
-
-    const tokens = await responseWithTokens(newUser);
-
-    res.success(newUser, HTTP_STATUS.CREATED, tokens);
-  } catch (error) {
-    if (String(error).includes("Duplicate")) {
-      res.error("Email da ton tai", HTTP_STATUS.CONFLICT);
-    } else {
-      throw error;
-    }
-  }
+  const { user, tokens } = await authService.register({ email, password });
+  res.success(user, HTTP_STATUS.CREATED, tokens);
 };
 
 const login = async (req, res) => {
@@ -82,7 +27,7 @@ const login = async (req, res) => {
     return res.error(ERROR_MESSAGES.UNAUTHORIZED, HTTP_STATUS.UNAUTHORIZED);
   }
 
-  const tokens = await responseWithTokens(user);
+  const tokens = await authService.responseWithTokens(user);
   res.success(user, HTTP_STATUS.OK, tokens);
 };
 
@@ -98,7 +43,7 @@ const refreshToken = async (req, res) => {
     return res.error(ERROR_MESSAGES.UNAUTHORIZED, HTTP_STATUS.UNAUTHORIZED);
   }
 
-  const tokens = await responseWithTokens(user);
+  const tokens = await authService.responseWithTokens(user);
   res.success(tokens);
 };
 
@@ -145,8 +90,7 @@ const logout = async (req, res) => {
   const user_id = req.user.id;
   const token = req.token;
 
-  await userModel.clearRefreshToken(user_id);
-  await revoke_tokenModel.create(token);
+  await authService.logout(user_id, token);
   res.success("Logout thanh cong");
 };
 
